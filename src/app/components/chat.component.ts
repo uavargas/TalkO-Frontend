@@ -1,9 +1,21 @@
-import { Component, ElementRef, ViewChild, OnDestroy, OnInit, AfterViewChecked } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  ViewChild,
+  OnDestroy,
+  OnInit,
+  AfterViewChecked,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import * as Stomp from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
-import { Subject, Subscription, debounceTime, distinctUntilChanged } from 'rxjs';
+import {
+  Subject,
+  Subscription,
+  debounceTime,
+  distinctUntilChanged,
+} from 'rxjs';
 
 // Interfaces
 interface ChatMessage {
@@ -25,7 +37,7 @@ interface TypingUser {
   standalone: true,
   imports: [FormsModule, CommonModule],
   templateUrl: './chat.component.html',
-  styleUrls: ['./chat.component.css']
+  styleUrls: ['./chat.component.css'],
 })
 export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
   @ViewChild('scrollMe') private scrollContainer!: ElementRef;
@@ -49,7 +61,8 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
   // WebSocket
   client!: Stomp.Client;
   connected: boolean = false;
-  connectionStatus: 'connecting' | 'connected' | 'disconnected' | 'error' = 'disconnected';
+  connectionStatus: 'connecting' | 'connected' | 'disconnected' | 'error' =
+    'disconnected';
 
   // Mensaje actual
   message: { text: string } = { text: '' };
@@ -90,7 +103,8 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
   // === CONFIGURACIÓN WEBSOCKET ===
   private initializeWebSocketConnection(): void {
     this.client = new Stomp.Client({
-      webSocketFactory: () => new SockJS('http://localhost:8080/chat-websocket'),
+      webSocketFactory: () =>
+        new SockJS('http://localhost:8080/chat-websocket'),
       debug: (str) => {
         if (!str.includes('HEARTBEAT')) {
           console.log('STOMP:', str);
@@ -99,7 +113,7 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
       reconnectDelay: 5000,
       heartbeatIncoming: 4000,
       heartbeatOutgoing: 4000,
-      
+
       onConnect: (frame) => {
         this.connected = true;
         this.connectionStatus = 'connected';
@@ -115,29 +129,29 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
         });
 
         this.announceNewUser();
-        
+
         if (this.connectionTimeout) {
           clearTimeout(this.connectionTimeout);
         }
       },
-      
+
       onDisconnect: (frame) => {
         this.connected = false;
         this.connectionStatus = 'disconnected';
         this.typingUsers = [];
         console.log('❌ Desconectado del chat:', frame);
       },
-      
+
       onStompError: (frame) => {
         console.error('🚨 Error STOMP:', frame.headers['message']);
         this.connectionStatus = 'error';
       },
-      
+
       onWebSocketError: (event) => {
         console.error('🚨 Error WebSocket:', event);
         this.connectionStatus = 'error';
         alert('❌ No se pudo conectar al servidor.');
-      }
+      },
     });
   }
 
@@ -145,11 +159,17 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
   private handleIncomingMessage(stompMessage: any): void {
     try {
       const receivedMessage: ChatMessage = JSON.parse(stompMessage.body);
-      
-      const isSystemMessage = receivedMessage.type === 'NEW_USER' || receivedMessage.type === 'USER_LEFT';
-      
+
+      const isSystemMessage =
+        receivedMessage.type === 'NEW_USER' ||
+        receivedMessage.type === 'USER_LEFT';
+
       // Guardar color asignado por el backend
-      if (receivedMessage.type === 'NEW_USER' && receivedMessage.sender === this.currentUser && receivedMessage.color) {
+      if (
+        receivedMessage.type === 'NEW_USER' &&
+        receivedMessage.sender === this.currentUser &&
+        receivedMessage.color
+      ) {
         this.currentUserColor = receivedMessage.color;
         console.log(`🎨 Color asignado: ${this.currentUserColor}`);
       }
@@ -161,7 +181,7 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
         date: new Date(receivedMessage.date || Date.now()),
         color: receivedMessage.color || '#000000',
         type: receivedMessage.type,
-        isSystemMessage: isSystemMessage
+        isSystemMessage: isSystemMessage,
       });
 
       // Limitar mensajes para rendimiento
@@ -170,7 +190,6 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
       }
 
       this.shouldScroll = true;
-      
     } catch (error) {
       console.error('❌ Error al procesar mensaje:', error);
     }
@@ -181,23 +200,22 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
       sender: this.currentUser,
       text: '',
       date: Date.now(),
-      type: 'NEW_USER'
+      type: 'NEW_USER',
     };
 
     this.client.publish({
       destination: '/app/message',
-      body: JSON.stringify(newUserMessage)
+      body: JSON.stringify(newUserMessage),
     });
   }
 
   // === INDICADOR DE ESCRIBIENDO ===
   private setupTypingDetection(): void {
-    this.typingSubscription = this.typingSubject.pipe(
-      debounceTime(500),
-      distinctUntilChanged()
-    ).subscribe(() => {
-      this.handleTypingState();
-    });
+    this.typingSubscription = this.typingSubject
+      .pipe(debounceTime(500), distinctUntilChanged())
+      .subscribe(() => {
+        this.handleTypingState();
+      });
   }
 
   private handleTypingState(): void {
@@ -227,29 +245,31 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
       text: isTyping ? 'TYPING_START' : 'TYPING_STOP',
       date: Date.now(),
       color: this.currentUserColor,
-      type: isTyping ? 'TYPING_START' : 'TYPING_STOP'
+      type: isTyping ? 'TYPING_START' : 'TYPING_STOP',
     };
 
     this.client.publish({
       destination: '/app/typing',
-      body: JSON.stringify(typingMessage)
+      body: JSON.stringify(typingMessage),
     });
   }
 
   private handleTypingEvent(stompMessage: any): void {
     try {
       const receivedMessage: ChatMessage = JSON.parse(stompMessage.body);
-      
+
       if (receivedMessage.sender === this.currentUser) return;
 
       const now = Date.now();
-      const userIndex = this.typingUsers.findIndex(user => user.username === receivedMessage.sender);
+      const userIndex = this.typingUsers.findIndex(
+        (user) => user.username === receivedMessage.sender
+      );
 
       if (receivedMessage.type === 'TYPING_START') {
         const typingUser: TypingUser = {
           username: receivedMessage.sender,
           color: receivedMessage.color || '#000000',
-          timestamp: now
+          timestamp: now,
         };
 
         if (userIndex >= 0) {
@@ -262,7 +282,6 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
       }
 
       this.cleanupTypingUsers();
-
     } catch (error) {
       console.error('❌ Error en evento typing:', error);
     }
@@ -270,17 +289,21 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
 
   private cleanupTypingUsers(): void {
     const now = Date.now();
-    this.typingUsers = this.typingUsers.filter(user => 
-      (now - user.timestamp) < (this.TYPING_TIMEOUT + 2000)
+    this.typingUsers = this.typingUsers.filter(
+      (user) => now - user.timestamp < this.TYPING_TIMEOUT + 2000
     );
   }
 
   getTypingText(): string {
     const count = this.typingUsers.length;
     if (count === 0) return '';
-    if (count === 1) return `${this.typingUsers[0].username} está escribiendo...`;
-    if (count === 2) return `${this.typingUsers[0].username} y ${this.typingUsers[1].username} están escribiendo...`;
-    return `${this.typingUsers[0].username} y ${count - 1} más están escribiendo...`;
+    if (count === 1)
+      return `${this.typingUsers[0].username} está escribiendo...`;
+    if (count === 2)
+      return `${this.typingUsers[0].username} y ${this.typingUsers[1].username} están escribiendo...`;
+    return `${this.typingUsers[0].username} y ${
+      count - 1
+    } más están escribiendo...`;
   }
 
   // === MÉTODOS PÚBLICOS ===
@@ -299,14 +322,14 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
     if (!this.connected) {
       console.log('🔌 Conectando...');
       this.connectionStatus = 'connecting';
-      
+
       this.connectionTimeout = setTimeout(() => {
         if (this.connectionStatus === 'connecting') {
           this.connectionStatus = 'error';
           alert('❌ Timeout de conexión');
         }
       }, 10000);
-      
+
       this.client.activate();
     }
   }
@@ -314,28 +337,28 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
   disconnect(): void {
     if (this.connected && this.client) {
       console.log('🔌 Desconectando...');
-      
+
       if (this.isTyping) {
         this.sendTypingEvent(false);
       }
-      
+
       const leaveMessage: ChatMessage = {
         sender: this.currentUser,
         text: '',
         date: Date.now(),
         color: this.currentUserColor,
-        type: 'USER_LEFT'
+        type: 'USER_LEFT',
       };
-      
+
       try {
         this.client.publish({
           destination: '/app/message',
-          body: JSON.stringify(leaveMessage)
+          body: JSON.stringify(leaveMessage),
         });
       } catch (e) {
         console.log('No se pudo enviar mensaje de desconexión');
       }
-      
+
       this.client.deactivate();
       this.connected = false;
       this.connectionStatus = 'disconnected';
@@ -351,17 +374,17 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
       text: this.message.text.trim(),
       date: Date.now(),
       color: this.currentUserColor,
-      type: 'MESSAGE'
+      type: 'MESSAGE',
     };
 
     this.client.publish({
       destination: '/app/message',
-      body: JSON.stringify(chatMessage)
+      body: JSON.stringify(chatMessage),
     });
 
     this.message.text = '';
     this.shouldScroll = true;
-    
+
     if (this.isTyping) {
       this.isTyping = false;
       this.sendTypingEvent(false);
@@ -376,7 +399,7 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
 
   setUsername(): void {
     const trimmedName = this.tempUsername.trim();
-    
+
     if (trimmedName.length < 3 || trimmedName.length > 20) {
       alert('⚠️ El nombre debe tener entre 3 y 20 caracteres');
       return;
@@ -413,7 +436,8 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
   private scrollToBottom(): void {
     try {
       if (this.scrollContainer) {
-        this.scrollContainer.nativeElement.scrollTop = this.scrollContainer.nativeElement.scrollHeight;
+        this.scrollContainer.nativeElement.scrollTop =
+          this.scrollContainer.nativeElement.scrollHeight;
       }
     } catch (err) {
       console.error('❌ Error en scroll:', err);
@@ -451,9 +475,9 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
   }
 
   formatTime(date: Date): string {
-    return date.toLocaleTimeString('es-ES', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
+    return date.toLocaleTimeString('es-ES', {
+      hour: '2-digit',
+      minute: '2-digit',
     });
   }
 }
