@@ -1,0 +1,177 @@
+<div class="card m-4 shadow-sm">
+  <!-- Header -->
+  <div class="card-header bg-info text-dark d-flex justify-content-between align-items-center">
+    <h5 class="mb-0">
+      <i class="bi bi-chat-dots-fill"></i> <strong>TalkO</strong> - Chat en Tiempo Real
+    </h5>
+    <div class="d-flex align-items-center gap-2">
+      <!-- Estado de conexión -->
+      <span class="badge" [ngClass]="{
+        'bg-success': connectionStatus === 'connected',
+        'bg-warning': connectionStatus === 'connecting', 
+        'bg-danger': connectionStatus === 'error',
+        'bg-secondary': connectionStatus === 'disconnected'
+      }">
+        <i class="bi" [ngClass]="{
+          'bi-check-circle-fill': connectionStatus === 'connected',
+          'bi-arrow-repeat': connectionStatus === 'connecting',
+          'bi-exclamation-triangle-fill': connectionStatus === 'error',
+          'bi-x-circle-fill': connectionStatus === 'disconnected'
+        }"></i>
+        {{ 
+          connectionStatus === 'connected' ? 'Conectado' :
+          connectionStatus === 'connecting' ? 'Conectando...' :
+          connectionStatus === 'error' ? 'Error' : 'Desconectado'
+        }}
+        <span *ngIf="connected">como <strong [style.color]="currentUserColor">{{ currentUser }}</strong></span>
+      </span>
+      
+      <!-- Botones -->
+      <div class="btn-group">
+        <button class="btn btn-success btn-sm" *ngIf="!connected" (click)="connect()" [disabled]="connectionStatus === 'connecting'">
+          <i class="bi bi-plug-fill"></i> Conectar
+        </button>
+        <button class="btn btn-danger btn-sm" *ngIf="connected" (click)="disconnect()">
+          <i class="bi bi-plug"></i> Desconectar
+        </button>
+        <button class="btn btn-outline-secondary btn-sm" (click)="enableEditUsername()" title="Cambiar usuario">
+          <i class="bi bi-pencil"></i>
+        </button>
+        <button class="btn btn-outline-secondary btn-sm" (click)="clearMessages()" title="Limpiar mensajes">
+          <i class="bi bi-trash"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Área de mensajes -->
+  <div #scrollMe class="card-body p-3 message-container">
+    <div *ngIf="connected" class="h-100 d-flex flex-column">
+      <!-- Mensajes -->
+      <div class="flex-grow-1">
+        <div *ngFor="let message of messages; trackBy: trackByMessage" class="mb-2">
+          <!-- Mensajes del sistema -->
+          <div *ngIf="message.isSystemMessage" class="text-center">
+            <small class="badge" [ngClass]="{
+              'bg-success': message.type === 'NEW_USER',
+              'bg-secondary': message.type === 'USER_LEFT'
+            }">
+              <i class="bi" [ngClass]="{
+                'bi-person-plus-fill': message.type === 'NEW_USER',
+                'bi-person-dash-fill': message.type === 'USER_LEFT'
+              }"></i>
+              {{ message.text }}
+            </small>
+          </div>
+          <!-- Mensajes normales -->
+          <div *ngIf="!message.isSystemMessage" class="d-flex" [ngClass]="{
+            'justify-content-end': isMyMessage(message.username),
+            'justify-content-start': !isMyMessage(message.username)
+          }">
+            <div class="message-bubble p-2 rounded-3" [ngClass]="{
+              'my-message': isMyMessage(message.username),
+              'other-message': !isMyMessage(message.username)
+            }">
+              <small class="fw-bold d-block" [style.color]="message.color">
+                {{ message.username }}
+                <span *ngIf="isMyMessage(message.username)" class="badge bg-primary bg-opacity-25 ms-1">Tú</span>
+              </small>
+              <p class="mb-1">{{ message.text }}</p>
+              <small class="text-muted">{{ formatTime(message.date) }}</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Indicador de escribiendo -->
+      <div *ngIf="getTypingText()" class="typing-indicator mt-2">
+        <div class="d-flex align-items-center text-muted">
+          <div class="typing-dots me-2">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+          </div>
+          <small><i class="bi bi-pencil"></i> {{ getTypingText() }}</small>
+        </div>
+      </div>
+
+      <!-- Estado vacío -->
+      <div *ngIf="messages.length === 0 && !getTypingText()" class="text-center text-muted py-5">
+        <i class="bi bi-chat-text display-4 d-block mb-2"></i>
+        <p>No hay mensajes aún. ¡Sé el primero en escribir!</p>
+      </div>
+    </div>
+
+    <!-- No conectado -->
+    <div *ngIf="!connected && connectionStatus !== 'connecting'" class="text-center py-5 text-muted">
+      <i class="bi bi-chat-dots-fill display-4 d-block mb-2"></i>
+      <h5>Conéctate para chatear</h5>
+      <p>Usuario: <strong [style.color]="currentUserColor">{{ currentUser }}</strong></p>
+      <button class="btn btn-primary mt-2" (click)="connect()">
+        <i class="bi bi-plug-fill"></i> Conectar
+      </button>
+    </div>
+
+    <!-- Conectando -->
+    <div *ngIf="connectionStatus === 'connecting'" class="text-center py-5">
+      <div class="spinner-border text-primary mb-3"></div>
+      <h5 class="text-primary">Conectando...</h5>
+    </div>
+  </div>
+
+  <!-- Formulario de envío -->
+  <div class="card-footer bg-light" *ngIf="connected">
+    <form (ngSubmit)="onSendMessage()" class="d-flex gap-2">
+      <div class="flex-grow-1 position-relative">
+        <textarea
+          class="form-control"
+          [(ngModel)]="message.text"
+          (input)="onMessageInput()"
+          (keydown)="onKeyDown($event)"
+          placeholder="Escribe un mensaje... (Shift+Enter para nueva línea)"
+          name="text"
+          rows="1"
+          style="resize: none; min-height: 38px; max-height: 120px;"
+          #messageInput
+        ></textarea>
+        <small class="position-absolute bottom-0 end-0 p-1 text-muted">
+          {{ message.text.length }}/500
+        </small>
+      </div>
+      <button type="submit" class="btn btn-primary" [disabled]="!message.text.trim()">
+        <i class="bi bi-send-fill"></i>
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- Formulario de usuario (modal) -->
+<div *ngIf="isEditingUsername" class="modal show d-block" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title"><i class="bi bi-person-badge"></i> Configura tu usuario</h5>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label">Nombre de usuario</label>
+          <input
+            type="text"
+            class="form-control"
+            [(ngModel)]="tempUsername"
+            (keydown)="onUsernameKeyDown($event)"
+            placeholder="Ingresa tu nombre"
+            maxlength="20"
+            autofocus
+          />
+          <div class="form-text">Entre 3-20 caracteres. Solo letras, números, guiones y espacios.</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" (click)="cancelEditUsername()">Cancelar</button>
+        <button type="button" class="btn btn-primary" (click)="setUsername()">Confirmar</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div *ngIf="isEditingUsername" class="modal-backdrop show"></div>
