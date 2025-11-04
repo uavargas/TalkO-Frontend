@@ -104,7 +104,7 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
   private initializeWebSocketConnection(): void {
     this.client = new Stomp.Client({
       webSocketFactory: () =>
-        new SockJS('http://localhost:8080/chat-websocket'),
+        new SockJS('http://52.23.170.42:8080/chat-websocket'),
       debug: (str) => {
         if (!str.includes('HEARTBEAT')) {
           console.log('STOMP:', str);
